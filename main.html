@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Firebase App (core) SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<!-- Firebase Auth -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<!-- Firebase Firestore -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<title>Gym Progress Dashboard</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Navbar */
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #1e1e1e;
+    padding: 12px 20px;
+    border-bottom: 1px solid #555;
+}
+
+nav h1 {
+    margin: 0;
+    color: #00ff7f;
+    font-weight: 600;
+}
+
+nav .nav-links button {
+    background: none;
+    border: none;
+    color: #00ff7f;
+    font-size: 16px;
+    margin-left: 15px;
+    cursor: pointer;
+}
+
+/* Container */
+.container {
+    max-width: 950px;
+    margin: auto;
+    padding: 20px;
+}
+
+/* Forms */
+form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+select, button, input {
+    padding: 8px 12px;
+    border: 1px solid #888;
+    border-radius: 5px;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    transition: all 0.2s ease;
+}
+
+select:focus, button:focus, input:focus {
+    border-color: #00ff7f;
+    outline: none;
+}
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+th, td {
+    padding: 8px;
+    text-align: center;
+    border: 1px solid #555;
+}
+
+th {
+    background-color: #1e1e1e;
+}
+
+tr:nth-child(even) {
+    background-color: #181818;
+}
+
+.highlight-new {
+    background-color: #555500;
+    color: #fff;
+}
+
+/* Chart */
+#progressChart {
+    background-color: #1e1e1e;
+    border: 1px solid #555;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+/* Settings Form Cards */
+.setting-card {
+    border: 1px solid #555;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: #1a1a1a;
+}
+
+.setting-card h3 {
+    margin: 0 0 10px 0;
+    color: #00ff7f;
+}
+
+.exercise-item {
+    display: flex;
+    justify-content: space-between;
+    background-color: #181818;
+    padding: 6px 10px;
+    margin: 2px 0;
+    border: 1px solid #555;
+    border-radius: 5px;
+    align-items: center;
+}
+
+.exercise-item button {
+    border: 1px solid red;
+    color: red;
+    padding: 3px 6px;
+    background-color: #1e1e1e;
+    cursor: pointer;
+}
+
+.exercise-item button:hover {
+    background-color: red;
+    color: #121212;
+}
+
+.remove-workout-btn {
+    border: 1px solid red;
+    color: red;
+    background-color: #1e1e1e;
+    padding: 3px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.remove-workout-btn:hover {
+    background-color: red;
+    color: #121212;
+}
+#logoutBtn {
+	border: 1px solid #999;
+	color: #999;
+}
+</style>
+</head>
+<body>
+<nav>
+    <h1>Gym Progress Dashboard</h1>
+    <div class="nav-links">
+        <button onclick="showPage('home')">Home</button>
+        <button onclick="showPage('settings')">Settings</button>
+				<button id="logoutBtn">Logout</button>
+    </div>
+</nav>
+
+<div class="container">
+    <!-- Home Page -->
+    <div id="homePage">
+        <form id="workoutForm">
+            <select id="daySelect"></select>
+
+            <!-- DATE PICKER -->
+            <input type="date" id="dateInput"/>
+
+            <select id="muscleGroup"></select>
+            <select id="exerciseSelect"></select>
+
+            <!-- MANUAL INPUTS -->
+            <input type="number" id="setsInput" placeholder="Sets" min="1">
+            <input type="number" id="repsInput" placeholder="Reps" min="1">
+            <input type="number" id="weightInput" placeholder="Weight (kg)" min="0" step="0.1">
+
+            <button type="submit">Add</button>
+        </form>
+
+        <table id="logTable">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>Muscle Group</th>
+                    <th>Exercise</th>
+                    <th>Sets</th>
+                    <th>Reps</th>
+                    <th>Weight (kg)</th>
+                    <th>Volume (kg)</th>
+                    <th>Remove</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <canvas id="progressChart" width="400" height="200"></canvas>
+    </div>
+
+    <!-- Settings Page -->
+    <div id="settingsPage" style="display:none;">
+        <div class="setting-card">
+            <h3>Days</h3>
+            <div id="dayList"></div>
+            <input type="text" id="newDay" placeholder="Add new day">
+            <button onclick="addDay()">Add</button>
+        </div>
+
+        <div class="setting-card">
+            <h3>Dates (for dropdown backup)</h3>
+            <div id="dateList"></div>
+            <input type="text" id="newDate" placeholder="YYYY-MM-DD">
+            <button onclick="addDate()">Add</button>
+        </div>
+
+        <div class="setting-card">
+            <h3>Muscle Groups</h3>
+            <div id="muscleList"></div>
+            <input type="text" id="newMuscle" placeholder="Add new muscle group">
+            <button onclick="addMuscle()">Add</button>
+        </div>
+
+        <div class="setting-card">
+            <h3>Exercises</h3>
+            <div id="exerciseList"></div>
+            <input type="text" id="newExerciseName" placeholder="Exercise name">
+            <select id="muscleForExercise"></select>
+            <button onclick="addExercise()">Add</button>
+        </div>
+    </div>
+</div>
+
+<script>
+	// --- Firebase Config & Init ---
+const firebaseConfig = {
+    apiKey: "AIzaSyDWJSyof0Nh-V326xA_HO7tawcvTLMgNug",
+    authDomain: "workout-tracker-73d10.firebaseapp.com",
+    projectId: "workout-tracker-73d10",
+    storageBucket: "workout-tracker-73d10.appspot.com",
+    messagingSenderId: "304410866722",
+    appId: "1:304410866722:web:5e3ac0b25af2f9d802067b",
+    measurementId: "G-6ZFCJFKCT4"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// --- LocalStorage Data ---
+let dropdownData = JSON.parse(localStorage.getItem('dropdownData')) || {
+    days: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    dates: [],
+    muscleGroups: ["Arms","Legs","Back","Chest","Shoulders","Core"],
+    exercises: {
+        Arms:["Bicep Curl","Hammer Curl","Tricep Extension"],
+        Legs:["Squat","Leg Extension"],
+        Back:["Pull-up","Row"],
+        Chest:["Bench Press","Push-up"],
+        Shoulders:["Overhead Press","Lateral Raise"],
+        Core:["Plank","Hanging Leg Raise"]
+    }
+};
+
+let workouts = JSON.parse(localStorage.getItem('workouts')) || [];
+
+// DOM
+const daySelect = document.getElementById('daySelect');
+const dateInput = document.getElementById('dateInput');
+const muscleGroupSelect = document.getElementById('muscleGroup');
+const exerciseSelect = document.getElementById('exerciseSelect');
+
+const setsInput = document.getElementById('setsInput');
+const repsInput = document.getElementById('repsInput');
+const weightInput = document.getElementById('weightInput');
+
+const logTableBody = document.querySelector('#logTable tbody');
+
+// --- Firebase Auth Check & Load User Data ---
+auth.onAuthStateChanged(user => {
+    if(user){
+        const userRef = db.collection("users").doc(user.uid);
+
+        // Fetch dropdownData
+        userRef.get().then(doc => {
+            if(doc.exists && doc.data().dropdownData){
+                dropdownData = doc.data().dropdownData;
+            }
+            populateDropdowns();
+            renderAllSettings();
+        });
+
+        // Fetch workouts
+        userRef.collection("workouts").orderBy("date").get()
+            .then(snapshot => {
+                workouts = snapshot.docs.map(doc => doc.data());
+                renderTable();
+                updateChart();
+            })
+            .catch(err => console.error("Error fetching workouts:", err));
+    } else {
+        window.location.href = "index.html"; // redirect if not signed in
+    }
+});
+
+// --- Save dropdownData to Firestore ---
+function saveDropdownData() {
+    const user = auth.currentUser;
+    if(user){
+        db.collection("users").doc(user.uid).set({ dropdownData }, { merge: true })
+            .then(() => console.log("Dropdown data saved"))
+            .catch(err => console.error("Error saving dropdownData:", err));
+    }
+}
+
+// --- Populate Dropdowns ---
+function populateDropdowns() {
+    function fill(sel, arr) {
+        sel.innerHTML = "";
+        arr.forEach(v => {
+            let o = document.createElement("option");
+            o.value = v;
+            o.textContent = v;
+            sel.appendChild(o);
+        });
+    }
+
+    fill(daySelect, dropdownData.days);
+    fill(muscleGroupSelect, dropdownData.muscleGroups);
+    populateExercises();
+
+    dateInput.value = new Date().toISOString().split("T")[0];
+}
+
+function populateExercises() {
+    exerciseSelect.innerHTML = "";
+    (dropdownData.exercises[muscleGroupSelect.value] || []).forEach(ex => {
+        let o = document.createElement("option");
+        o.value = ex;
+        o.textContent = ex;
+        exerciseSelect.appendChild(o);
+    });
+}
+
+muscleGroupSelect.addEventListener("change", populateExercises);
+
+// --- Render Table ---
+function renderTable() {
+    logTableBody.innerHTML = "";
+    workouts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    workouts.forEach((w, i) => {
+        const tr = document.createElement("tr");
+        const volume = w.sets * w.reps * w.weight;
+
+        tr.innerHTML = `
+            <td>${w.day}</td>
+            <td>${w.date}</td>
+            <td>${w.muscleGroup}</td>
+            <td>${w.exercise}</td>
+            <td>${w.sets}</td>
+            <td>${w.reps}</td>
+            <td>${w.weight}</td>
+            <td>${volume}</td>
+            <td><button class="remove-workout-btn" onclick="removeWorkout(${i})">Remove</button></td>
+        `;
+
+        logTableBody.appendChild(tr);
+    });
+}
+
+// --- Chart ---
+let progressChart = new Chart(document.getElementById("progressChart").getContext("2d"), {
+    type: "line",
+    data: { datasets: [] },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: "#00ff7f" } } },
+        scales: {
+            x: { ticks: { color: "#00ff7f" } },
+            y: { ticks: { color: "#00ff7f" } }
+        }
+    }
+});
+
+function updateChart() {
+    const groups = {};
+    workouts.forEach(w => {
+        if (!groups[w.muscleGroup]) groups[w.muscleGroup] = [];
+        groups[w.muscleGroup].push({ x: w.date, y: w.sets * w.reps * w.weight });
+    });
+
+    const colors = {
+        Arms: "#00ff7f",
+        Legs: "#aaaaaa",
+        Back: "#ffffff",
+        Chest: "#ffff00",
+        Shoulders: "#ff5500",
+        Core: "#ff0000"
+    };
+
+    progressChart.data.datasets = [];
+
+    for (let g in groups) {
+        progressChart.data.datasets.push({
+            label: g,
+            data: groups[g],
+            borderColor: colors[g] || "#00ff7f",
+            backgroundColor: (colors[g] || "#00ff7f") + "33",
+            tension: 0.3,
+            fill: true,
+            pointRadius: 4
+        });
+    }
+
+    progressChart.update();
+}
+
+// --- Remove Workout ---
+function removeWorkout(index) {
+    const user = auth.currentUser;
+    if(user){
+        db.collection("users").doc(user.uid).collection("workouts")
+            .get()
+            .then(snapshot => {
+                const docId = snapshot.docs[index].id;
+                db.collection("users").doc(user.uid).collection("workouts").doc(docId).delete()
+                    .then(() => console.log("Workout deleted from Firestore"));
+            });
+    }
+
+    workouts.splice(index, 1);
+    localStorage.setItem("workouts", JSON.stringify(workouts));
+    renderTable();
+    updateChart();
+}
+
+// --- Add Workout ---
+document.getElementById("workoutForm").addEventListener("submit", e => {
+    e.preventDefault();
+
+    const newWorkout = {
+        day: daySelect.value,
+        date: dateInput.value,
+        muscleGroup: muscleGroupSelect.value,
+        exercise: exerciseSelect.value,
+        sets: parseInt(setsInput.value),
+        reps: parseInt(repsInput.value),
+        weight: parseFloat(weightInput.value)
+    };
+
+    workouts.push(newWorkout);
+    workouts.sort((a, b) => new Date(a.date) - new Date(b.date));
+    renderTable();
+    updateChart();
+    localStorage.setItem("workouts", JSON.stringify(workouts));
+
+    const user = auth.currentUser;
+    if(user){
+        db.collection("users").doc(user.uid).collection("workouts").add(newWorkout)
+            .then(docRef => console.log("Workout added with ID:", docRef.id))
+            .catch(err => console.error("Error adding workout:", err));
+    }
+});
+
+const logoutBtn = document.getElementById("logoutBtn");
+
+logoutBtn.addEventListener("click", () => {
+    auth.signOut()
+        .then(() => {
+            window.location.href = "index.html"; // back to login page
+        })
+        .catch(err => console.error("Logout error:", err));
+});
+
+// --- Settings Page ---
+function renderSettingsList(id, list) {
+    const container = document.getElementById(id);
+    container.innerHTML = "";
+    list.forEach((v, i) => {
+        const div = document.createElement("div");
+        div.className = "exercise-item";
+        div.innerHTML = `
+            <span>${v}</span>
+            <button onclick="removeItem('${id}', ${i})">Remove</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function removeItem(listId, index) {
+    switch (listId) {
+        case "dayList": dropdownData.days.splice(index, 1); break;
+        case "dateList": dropdownData.dates.splice(index, 1); break;
+        case "muscleList": dropdownData.muscleGroups.splice(index, 1); break;
+    }
+
+    localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+    saveDropdownData();
+    populateDropdowns();
+    renderAllSettings();
+}
+
+function renderExercisesSettings() {
+    const container = document.getElementById("exerciseList");
+    container.innerHTML = "";
+
+    for (let group in dropdownData.exercises) {
+        const groupDiv = document.createElement("div");
+        groupDiv.innerHTML = `<strong>${group}</strong>`;
+
+        dropdownData.exercises[group].forEach((ex, i) => {
+            const exDiv = document.createElement("div");
+            exDiv.className = "exercise-item";
+            exDiv.innerHTML = `
+                <span>${ex}</span>
+                <button onclick="removeExercise('${group}', ${i})">Remove</button>
+            `;
+            groupDiv.appendChild(exDiv);
+        });
+
+        container.appendChild(groupDiv);
+    }
+
+    populateExercisesMuscleSelect();
+}
+
+function removeExercise(group, index) {
+    dropdownData.exercises[group].splice(index, 1);
+    localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+    saveDropdownData();
+    populateExercises();
+    renderExercisesSettings();
+}
+
+function populateExercisesMuscleSelect() {
+    const sel = document.getElementById("muscleForExercise");
+    sel.innerHTML = "";
+    dropdownData.muscleGroups.forEach(g => {
+        let o = document.createElement("option");
+        o.value = g;
+        o.textContent = g;
+        sel.appendChild(o);
+    });
+}
+
+function addDay() {
+    const v = document.getElementById("newDay").value.trim();
+    if (v) {
+        dropdownData.days.push(v);
+        document.getElementById("newDay").value = "";
+        localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+        saveDropdownData();
+        populateDropdowns();
+        renderAllSettings();
+    }
+}
+
+function addDate() {
+    const v = document.getElementById("newDate").value.trim();
+    if (v) {
+        dropdownData.dates.push(v);
+        document.getElementById("newDate").value = "";
+        localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+        saveDropdownData();
+        renderAllSettings();
+    }
+}
+
+function addMuscle() {
+    const v = document.getElementById("newMuscle").value.trim();
+    if (v) {
+        dropdownData.muscleGroups.push(v);
+        dropdownData.exercises[v] = [];
+        document.getElementById("newMuscle").value = "";
+        localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+        saveDropdownData();
+        populateDropdowns();
+        renderAllSettings();
+    }
+}
+
+function addExercise() {
+    const ex = document.getElementById("newExerciseName").value.trim();
+    const group = document.getElementById("muscleForExercise").value;
+
+    if (ex) {
+        dropdownData.exercises[group].push(ex);
+        document.getElementById("newExerciseName").value = "";
+        localStorage.setItem("dropdownData", JSON.stringify(dropdownData));
+        saveDropdownData();
+        populateExercises();
+        renderExercisesSettings();
+    }
+}
+
+// --- Render Settings ---
+function renderAllSettings() {
+    renderSettingsList("dayList", dropdownData.days);
+    renderSettingsList("dateList", dropdownData.dates);
+    renderSettingsList("muscleList", dropdownData.muscleGroups);
+    renderExercisesSettings();
+}
+
+function showPage(page) {
+    document.getElementById("homePage").style.display = page === "home" ? "block" : "none";
+    document.getElementById("settingsPage").style.display = page === "settings" ? "block" : "none";
+}
+
+// --- Init ---
+populateDropdowns();
+renderTable();
+updateChart();
+renderAllSettings();
+populateExercisesMuscleSelect();
+</script>
+</body>
+</html>
